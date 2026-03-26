@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Client {
+  id        String    @id @default(uuid())
+  name      String
+  email     String    @unique
+  phone     String?
+  enquiries Enquiry[]
+  bookings  Booking[]
+  createdAt DateTime  @default(now())
+}
+
+model Enquiry {
+  id            String   @id @default(uuid())
+  clientId      String
+  client        Client   @relation(fields: [clientId], references: [id])
+  projectType   String   
+  preferredDate DateTime?
+  message       String   @db.Text
+  status        Status   @default(PENDING) 
+  
+  bookingToken  String?  @unique 
+  booking       Booking?
+  
+  createdAt     DateTime @default(now())
+}
+
+model Availability {
+  id        String   @id @default(uuid())
+  date      DateTime @db.Date
+  startTime String   
+  endTime   String   
+  isBooked  Boolean  @default(false)
+  booking   Booking?
+}
+
+model Booking {
+  id                String       @id @default(uuid())
+  enquiryId         String       @unique
+  enquiry           Enquiry      @relation(fields: [enquiryId], references: [id])
+  clientId          String
+  client            Client       @relation(fields: [clientId], references: [id])
+  slotId            String       @unique
+  slot              Availability @relation(fields: [slotId], references: [id])
+  
+  amount            Int          
+  paymentStatus     PayStatus    @default(PENDING) 
+  razorpayOrderId   String?      @unique
+  razorpayPaymentId String?      @unique
+  
+  invoiceUrl        String?      
+  galleryLink       String?      
+  galleryPassword   String?
+
+  createdAt         DateTime     @default(now())
+}
+
+enum Status { 
+  PENDING 
+  APPROVED 
+  REJECTED 
+}
+
+enum PayStatus { 
+  PENDING 
+  PAID 
+  FAILED 
+}
