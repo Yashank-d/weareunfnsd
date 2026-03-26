@@ -1,10 +1,11 @@
 import prisma from "@/lib/prisma";
 import DeliveryModal from "@/components/DeliveryModal";
+import CopyLink from "@/components/CopyLink";
 
 export default async function AdminBookings() {
   // Fetch all bookings that have been PAID, along with client and slot info
   const bookings = await prisma.booking.findMany({
-    where: { paymentStatus: "PAID" },
+    where: { paymentStatus: { in: ["ADVANCE_PAID", "FULLY_PAID", "PAID"] } },
     include: { 
       client: true,
       enquiry: true,
@@ -52,7 +53,10 @@ export default async function AdminBookings() {
                 </td>
                 
                 <td className="py-6 pr-4 font-mono text-xs text-white/80">
-                  ₹{(booking.amount / 100).toLocaleString('en-IN')}
+                  Total: ₹{booking.amount?.toLocaleString('en-IN') || 0}
+                  <div className="text-[9px] text-text-muted mt-1 uppercase">
+                    {booking.paymentStatus === "FULLY_PAID" ? "FULLY PAID" : "ADVANCE PAID (30%)"}
+                  </div>
                 </td>
                 
                 <td className="py-6 pr-4">
@@ -68,13 +72,27 @@ export default async function AdminBookings() {
                 </td>
                 
                 <td className="py-6 text-right">
-                  {!booking.galleryLink ? (
-                    <DeliveryModal bookingId={booking.id} clientName={booking.client.name} />
-                  ) : (
-                    <a href={booking.galleryLink} target="_blank" rel="noreferrer" className="font-mono text-[10px] text-text-muted hover:text-white underline uppercase tracking-widest">
-                      View Gallery
+                  <div className="flex items-center justify-end gap-3">
+                    <a href={`/api/invoice/${booking.id}`} className="font-mono text-[9px] text-[#E09F4A] border border-[#E09F4A]/30 px-2 py-1 hover:bg-[#E09F4A]/10 transition-colors uppercase tracking-widest" title="Download PDF Invoice" target="_blank">
+                      Invoice
                     </a>
-                  )}
+                  
+                    {!booking.galleryLink ? (
+                      <>
+                        {booking.paymentStatus !== "FULLY_PAID" && (
+                          <div className="relative group">
+                            <CopyLink value={`http://localhost:3000/pay/${booking.id}`} />
+                          </div>
+                        )}
+                        
+                        <DeliveryModal bookingId={booking.id} clientName={booking.client.name} paymentStatus={booking.paymentStatus} />
+                      </>
+                    ) : (
+                      <a href={booking.galleryLink} target="_blank" rel="noreferrer" className="font-mono text-[10px] text-text-muted hover:text-white underline uppercase tracking-widest">
+                        View Gallery
+                      </a>
+                    )}
+                  </div>
                 </td>
                 
               </tr>

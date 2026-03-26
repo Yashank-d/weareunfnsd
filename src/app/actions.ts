@@ -4,13 +4,14 @@ import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import crypto from "crypto";
 import Razorpay from "razorpay";
-import { sendBookingConfirmation } from "@/lib/mail";
-import { sendGalleryDeliveryEmail } from "@/lib/mail";
+import { sendEnquiryApprovedEmail, sendBookingConfirmation, sendGalleryDeliveryEmail, sendFinalPaymentRequestEmail } from "@/lib/mail";
+import { generateInvoicePDF } from "@/lib/pdf";
 
 // 1. Submit Enquiry (From the Public Portfolio)
 export async function submitEnquiry(formData: FormData) {
   const name = formData.get("name") as string;
   const email = formData.get("email") as string;
+  const instagramId = formData.get("instagramId") as string;
   const projectType = formData.get("projectType") as string;
   const message = formData.get("message") as string;
 
@@ -21,8 +22,8 @@ export async function submitEnquiry(formData: FormData) {
   try {
     const client = await prisma.client.upsert({
       where: { email },
-      update: { name },
-      create: { name, email },
+      update: { name, instagramId },
+      create: { name, email, instagramId },
     });
 
     await prisma.enquiry.create({
@@ -42,7 +43,7 @@ export async function submitEnquiry(formData: FormData) {
 }
 
 // 2. Approve/Reject & Generate Token (From the Admin Dashboard)
-export async function updateEnquiryStatus(enquiryId: string, newStatus: "APPROVED" | "REJECTED") {
+export async function updateEnquiryStatus(enquiryId: string, newStatus: "APPROVED" | "REJECTED", quoteAmount?: number) {
   try {
     let bookingToken = null;
 
@@ -52,13 +53,27 @@ export async function updateEnquiryStatus(enquiryId: string, newStatus: "APPROVE
 
     const updatedEnquiry = await prisma.enquiry.update({
       where: { id: enquiryId },
-      data: { status: newStatus, bookingToken },
+      data: { 
+        status: newStatus, 
+        bookingToken,
+        quoteAmount: quoteAmount || null
+      },
       include: { client: true }
     });
     
     if (newStatus === "APPROVED") {
       console.log(`\n🎉 SUCCESS! Send this link to ${updatedEnquiry.client.name}:`);
       console.log(`http://localhost:3000/book/${bookingToken}\n`);
+      
+      if (updatedEnquiry.quoteAmount && bookingToken) {
+        await sendEnquiryApprovedEmail(
+          updatedEnquiry.client.email,
+          updatedEnquiry.client.name,
+          updatedEnquiry.projectType,
+          updatedEnquiry.quoteAmount,
+          bookingToken
+        );
+      }
     }
 
     revalidatePath("/admin");
@@ -78,7 +93,7 @@ export async function createRazorpayOrder(amount: number, enquiryId: string) {
     });
 
     const options = {
-      amount: amount * 100, // INR to PAISE
+      amount: Math.round(amount * 100), // INR to PAISE (Must be integer)
       currency: "INR",
       receipt: `rcpt_${enquiryId.substring(0, 30)}`, 
     };
@@ -133,17 +148,21 @@ export async function verifyPayment(
     });
 
     // 4. Create the official Booking Record
-    await prisma.booking.create({
+    const booking = await prisma.booking.create({
       data: {
         enquiryId: enquiry.id,
         clientId: enquiry.clientId,
         slotId: slot.id,
-        amount: 350000, 
-        paymentStatus: "PAID",
+        amount: enquiry.quoteAmount || 350000, 
+        paymentStatus: "ADVANCE_PAID",
         razorpayOrderId: orderId,
         razorpayPaymentId: paymentId
-      }
+      },
+      include: { client: true, enquiry: true, slot: true }
     });
+
+    // Generate Invoice PDF
+    const pdfBytes = await generateInvoicePDF(booking as any);
 
     // 5. SEND THE AUTOMATED EMAIL!
     await sendBookingConfirmation(
@@ -152,13 +171,115 @@ export async function verifyPayment(
       enquiry.projectType,
       sessionDate,
       selectedTime,
-      350000
+      (enquiry.quoteAmount || 350000),
+      [{
+        filename: `Invoice-${booking.id.split('-')[0].toUpperCase()}.pdf`,
+        content: Buffer.from(pdfBytes)
+      }]
     );
 
     return { success: true };
   } catch (error) {
     console.error("Verification Error:", error);
     return { error: "Failed to verify and save booking." };
+  }
+}
+
+// 4. Create Razorpay Order for Final 70% Payment
+export async function createFinalPaymentOrder(amount: number, bookingId: string) {
+  try {
+    const razorpay = new Razorpay({
+      key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
+      key_secret: process.env.RAZORPAY_KEY_SECRET!,
+    });
+
+    const options = {
+      amount: Math.round(amount * 100), // INR to PAISE (Must be integer)
+      currency: "INR",
+      receipt: `final_${bookingId.substring(0, 30)}`, 
+    };
+
+    const order = await razorpay.orders.create(options);
+    return { success: true, orderId: order.id, amount: order.amount };
+  } catch (error) {
+    console.error("Razorpay Error:", error);
+    return { error: "Failed to create final payment order." };
+  }
+}
+
+export async function verifyFinalPayment(
+  paymentId: string,
+  orderId: string,
+  signature: string,
+  bookingId: string
+) {
+  try {
+    const body = orderId + "|" + paymentId;
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
+      .update(body.toString())
+      .digest("hex");
+
+    if (expectedSignature !== signature) {
+      return { error: "Invalid payment signature." };
+    }
+
+    const booking = await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        paymentStatus: "FULLY_PAID",
+        finalOrderId: orderId,
+        finalPaymentId: paymentId
+      },
+      include: { client: true, enquiry: true, slot: true }
+    });
+
+    // Generate Fresh "Paid in Full" Invoice PDF
+    const pdfBytes = await generateInvoicePDF(booking as any);
+
+    if (booking.galleryLink) {
+      await sendGalleryDeliveryEmail(
+        booking.client.email,
+        booking.client.name,
+        booking.galleryLink,
+        booking.galleryPassword || undefined,
+        [{
+          filename: `Invoice-Final-${booking.id.split('-')[0].toUpperCase()}.pdf`,
+          content: Buffer.from(pdfBytes)
+        }]
+      );
+    }
+
+    revalidatePath("/admin/bookings");
+    return { success: true };
+  } catch (error) {
+    console.error("Final Verification Error:", error);
+    return { error: "Failed to verify final payment." };
+  }
+}
+
+export async function requestFinalPaymentForGallery(bookingId: string, link: string, password?: string) {
+  try {
+    const booking = await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        galleryLink: link,
+        galleryPassword: password || null,
+      },
+      include: { client: true }
+    });
+
+    await sendFinalPaymentRequestEmail(
+      booking.client.email,
+      booking.client.name,
+      booking.id
+    );
+
+    revalidatePath("/admin/bookings");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to request final payment:", error);
+    return { error: "Failed to process gallery link." };
   }
 }
 

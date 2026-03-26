@@ -52,6 +52,17 @@ img:hover {
   color: #000;
 }
 
+/* Hide number input arrows */
+.hide-arrows::-webkit-outer-spin-button,
+.hide-arrows::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.hide-arrows[type=number] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
 /* Infinite scroll marquee animations */
 @keyframes marquee-left {
   0%   { transform: translateX(0); }

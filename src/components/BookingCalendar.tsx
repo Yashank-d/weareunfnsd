@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createRazorpayOrder, verifyPayment } from "@/app/actions";
+import StatusModal from "./ui/StatusModal";
 
 // Define the shape of the slot data coming from your database
 type Slot = {
@@ -32,10 +33,12 @@ const loadRazorpayScript = () => {
 
 export default function BookingCalendar({ 
   enquiryId, 
-  availableSlots 
+  availableSlots,
+  quoteAmount
 }: { 
   enquiryId: string, 
-  availableSlots: Slot[] 
+  availableSlots: Slot[],
+  quoteAmount: number
 }) {
   const router = useRouter();
   
@@ -43,6 +46,12 @@ export default function BookingCalendar({
   const [selectedDate, setSelectedDate] = useState<number | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [statusModal, setStatusModal] = useState<{ open: boolean, type: "success" | "error", title: string, message: string }>({
+    open: false,
+    type: "success",
+    title: "",
+    message: ""
+  });
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -92,20 +101,32 @@ export default function BookingCalendar({
     }
   };
 
-  const handlePayment = async () => {
+  const handleBooking = async () => {
+    if (!selectedDate || !selectedTime) return;
     setIsProcessing(true);
 
     const res = await loadRazorpayScript();
     if (!res) {
-      alert("Razorpay SDK failed to load. Check your internet connection.");
+      setStatusModal({
+        open: true,
+        type: "error",
+        title: "Connection Error",
+        message: "Razorpay SDK failed to load. Please check your internet connection."
+      });
       setIsProcessing(false);
       return;
     }
 
-    const orderData = await createRazorpayOrder(3500, enquiryId);
+    const advanceAmount = quoteAmount * 0.3;
+    const orderData = await createRazorpayOrder(advanceAmount, enquiryId);
     
     if (orderData.error || !orderData.orderId) {
-      alert("Could not initialize payment. Please try again.");
+      setStatusModal({
+        open: true,
+        type: "error",
+        title: "Order Failed",
+        message: "Could not initialize payment. Please try again."
+      });
       setIsProcessing(false);
       return;
     }
@@ -131,9 +152,14 @@ export default function BookingCalendar({
         );
 
         if (result.success) {
-          router.push("/booking/success");
+          router.push(`/booking/success?type=advance&amount=${Math.round(quoteAmount * 0.3)}`);
         } else {
-          alert("Payment verification failed: " + result.error);
+          setStatusModal({
+            open: true,
+            type: "error",
+            title: "Verification Failed",
+            message: "Payment verification failed: " + result.error
+          });
         }
       },
       theme: {
@@ -221,7 +247,7 @@ export default function BookingCalendar({
       {/* CHECKOUT BUTTON */}
       <div className="mt-8">
         <button 
-          onClick={handlePayment}
+          onClick={handleBooking}
           disabled={!selectedDate || !selectedTime || isProcessing}
           className={`
             w-full py-4 font-mono text-[11px] uppercase tracking-[0.2em] transition-all duration-300 border
@@ -234,6 +260,13 @@ export default function BookingCalendar({
         </button>
       </div>
 
+      <StatusModal 
+        isOpen={statusModal.open}
+        onClose={() => setStatusModal(prev => ({ ...prev, open: false }))}
+        status={statusModal.type}
+        title={statusModal.title}
+        message={statusModal.message}
+      />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { updateEnquiryStatus } from "../actions";
+import EnquiryActions from "./EnquiryActions";
 
 // This is a Server Component. It fetches data directly on the server.
 export default async function AdminEnquiries() {
@@ -50,14 +51,7 @@ export default async function AdminEnquiries() {
                 </td>
                 <td className="py-6 text-right">
                   {enquiry.status === "PENDING" ? (
-                    <div className="flex items-center justify-end gap-3">
-                      <form action={async () => { "use server"; await updateEnquiryStatus(enquiry.id, "REJECTED"); }}>
-                        <button className="font-mono text-[10px] text-danger hover:underline uppercase tracking-widest">Reject</button>
-                      </form>
-                      <form action={async () => { "use server"; await updateEnquiryStatus(enquiry.id, "APPROVED"); }}>
-                        <button className="font-mono text-[10px] text-accent border border-accent px-3 py-1 hover:bg-accent hover:text-black transition-colors uppercase tracking-widest">Approve</button>
-                      </form>
-                    </div>
+                    <EnquiryActions enquiryId={enquiry.id} clientName={enquiry.client.name} />
                   ) : (
                     <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">—</span>
                   )}

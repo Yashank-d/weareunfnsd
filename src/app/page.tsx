@@ -210,6 +210,11 @@ export default function PortfolioHome() {
                 </div>
 
                 <div className="relative group">
+                  <label className="absolute -top-4 left-0 font-mono text-[10px] uppercase tracking-widest text-text-muted transition-colors group-focus-within:text-accent">Instagram Handle (Optional)</label>
+                  <input type="text" name="instagramId" className="input-editorial" placeholder="@username" />
+                </div>
+
+                <div className="relative group">
                   <label className="absolute -top-4 left-0 font-mono text-[10px] uppercase tracking-widest text-text-muted transition-colors group-focus-within:text-accent">Project Type</label>
                     <select name="projectType" required defaultValue="" className="input-editorial appearance-none rounded-none bg-transparent">
                       <option value="" disabled className="text-black">Select an option...</option>

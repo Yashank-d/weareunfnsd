@@ -48,13 +48,19 @@ export default async function BookingPage({ params }: { params: Promise<{ token:
             <span className="font-mono text-xs uppercase tracking-wider text-white">{enquiry.projectType}</span>
           </div>
           <div className="flex flex-col gap-1 text-right">
-            <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">Base Rate</span>
-            <span className="font-mono text-xs uppercase tracking-wider text-white">₹3,500</span>
+            <span className="font-mono text-[10px] text-text-muted uppercase tracking-widest">30% Advance</span>
+            <span className="font-mono text-xs uppercase tracking-wider text-white">
+              ₹{((enquiry.quoteAmount || 350000) * 0.3).toLocaleString('en-IN')}
+            </span>
           </div>
         </div>
 
         {/* 3. Pass the fetched slots directly into the Calendar component */}
-        <BookingCalendar enquiryId={enquiry.id} availableSlots={availableSlots} />
+        <BookingCalendar 
+          enquiryId={enquiry.id} 
+          availableSlots={availableSlots} 
+          quoteAmount={enquiry.quoteAmount || 350000} 
+        />
 
       </div>
     </main>

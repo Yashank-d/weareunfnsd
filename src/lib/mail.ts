@@ -8,16 +8,85 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+export async function sendEnquiryApprovedEmail(
+  clientEmail: string,
+  clientName: string,
+  projectType: string,
+  quoteAmount: number,
+  bookingToken: string
+) {
+  const displayAmount = `₹${(quoteAmount).toLocaleString('en-IN')}`;
+  const advanceAmount = `₹${(quoteAmount * 0.3).toLocaleString('en-IN')}`;
+  
+  const mailOptions = {
+    from: `"Yashank D." <${process.env.EMAIL_USER}>`,
+    to: clientEmail,
+    subject: `Enquiry Approved: ${projectType} Session with Yashank D.`,
+    html: `
+      <div style="font-family: 'Courier New', Courier, monospace; max-width: 600px; margin: 0 auto; background-color: #0D0D0D; color: #EDEDED; padding: 40px; border: 1px solid #333;">
+        
+        <h1 style="font-family: Georgia, serif; font-style: italic; font-weight: 300; font-size: 32px; margin-bottom: 10px;">
+          Good news, ${clientName.split(' ')[0]}.
+        </h1>
+        
+        <p style="color: #6B6560; font-size: 14px; margin-bottom: 40px;">
+          Your enquiry for a ${projectType} session has been accepted. We are moving forward!
+        </p>
+
+        <div style="border-top: 1px solid #333; border-bottom: 1px solid #333; padding: 20px 0; margin-bottom: 40px;">
+          <table style="width: 100%; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">
+            <tr>
+              <td style="color: #6B6560; padding-bottom: 10px;">Total Quote</td>
+              <td style="text-align: right; color: #EDEDED; padding-bottom: 10px;">${displayAmount}</td>
+            </tr>
+            <tr>
+              <td style="color: #6B6560;">Required Advance (30%)</td>
+              <td style="text-align: right; color: #C6FF00;">${advanceAmount}</td>
+            </tr>
+          </table>
+        </div>
+
+        <h3 style="font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: #6B6560;">Secure Your Session Date</h3>
+        <p style="font-size: 14px; line-height: 1.6; color: #ccc; margin-bottom: 40px;">
+          To finalize your booking, please select an available date and complete the 30% advance payment via the secure portal below. Your session is not confirmed until this advance is paid.
+        </p>
+
+        <div style="text-align: center; margin: 50px 0;">
+          <a href="http://localhost:3000/book/${bookingToken}" style="background-color: #C6FF00; color: #000; padding: 15px 30px; text-decoration: none; font-size: 12px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase;">
+            Access Booking Portal
+          </a>
+        </div>
+
+        <div style="margin-top: 60px; font-size: 10px; color: #6B6560; text-transform: uppercase; letter-spacing: 2px;">
+          Yashank D. — Portrait & Street<br/>
+          Bengaluru, IN
+        </div>
+      </div>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending approved email:", error);
+    return { error: "Failed to send email" };
+  }
+}
+
 export async function sendBookingConfirmation(
   clientEmail: string, 
   clientName: string, 
   projectType: string,
   date: Date,
   time: string,
-  amount: number
+  totalQuote: number,
+  attachments?: any[]
 ) {
   const formattedDate = date.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  const displayAmount = `₹${(amount / 100).toLocaleString('en-IN')}`; // Convert paise back to INR
+  const displayTotal = `₹${(totalQuote).toLocaleString('en-IN')}`;
+  const displayAdvance = `₹${(totalQuote * 0.3).toLocaleString('en-IN')}`;
+  const displayRemaining = `₹${(totalQuote * 0.7).toLocaleString('en-IN')}`;
 
   const mailOptions = {
     from: `"Yashank D." <${process.env.EMAIL_USER}>`,
@@ -31,7 +100,7 @@ export async function sendBookingConfirmation(
         </h1>
         
         <p style="color: #6B6560; font-size: 14px; margin-bottom: 40px;">
-          Your payment has been received and your session is officially on the calendar.
+          Your 30% advance has been successfully processed and your session is officially on the calendar.
         </p>
 
         <div style="border-top: 1px solid #333; border-bottom: 1px solid #333; padding: 20px 0; margin-bottom: 40px;">
@@ -49,8 +118,16 @@ export async function sendBookingConfirmation(
               <td style="text-align: right; padding-bottom: 10px;">${time}</td>
             </tr>
             <tr>
-              <td style="color: #6B6560;">Amount Paid</td>
-              <td style="text-align: right; color: #C6FF00;">${displayAmount}</td>
+              <td style="color: #6B6560; padding-top: 10px; border-top: 1px solid #333;">Total Quote</td>
+              <td style="text-align: right; padding-top: 10px; border-top: 1px solid #333;">${displayTotal}</td>
+            </tr>
+            <tr>
+              <td style="color: #6B6560; padding-top: 10px;">Advance Paid</td>
+              <td style="text-align: right; color: #C6FF00; padding-top: 10px;">${displayAdvance}</td>
+            </tr>
+            <tr>
+              <td style="color: #6B6560; padding-top: 10px;">Balance Remaining</td>
+              <td style="text-align: right; color: #E09F4A; padding-top: 10px;">${displayRemaining}</td>
             </tr>
           </table>
         </div>
@@ -66,6 +143,7 @@ export async function sendBookingConfirmation(
         </div>
       </div>
     `,
+    attachments: attachments
   };
 
   try {
@@ -78,11 +156,60 @@ export async function sendBookingConfirmation(
   }
 }
 
+export async function sendFinalPaymentRequestEmail(
+  clientEmail: string,
+  clientName: string,
+  bookingId: string
+) {
+  const mailOptions = {
+    from: `"Yashank D." <${process.env.EMAIL_USER}>`,
+    to: clientEmail,
+    subject: `Your Gallery is Ready! Final Payment | Yashank D. Photography`,
+    html: `
+      <div style="font-family: 'Courier New', Courier, monospace; max-width: 600px; margin: 0 auto; background-color: #0D0D0D; color: #EDEDED; padding: 40px; border: 1px solid #333;">
+        
+        <h1 style="font-family: Georgia, serif; font-style: italic; font-weight: 300; font-size: 32px; margin-bottom: 10px;">
+          The wait is over, ${clientName.split(' ')[0]}.
+        </h1>
+        
+        <p style="color: #6B6560; font-size: 14px; margin-bottom: 40px;">
+          Your final, edited photographs are fully rendered and ready for viewing!
+        </p>
+
+        <h3 style="font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: #6B6560;">Unlock Your Gallery</h3>
+        <p style="font-size: 14px; line-height: 1.6; color: #ccc; margin-bottom: 40px;">
+          Please complete your final 70% payment via the portal below. Once processed, your secure gallery link and password will immediately jump into your inbox alongside your final invoice!
+        </p>
+
+        <div style="text-align: center; margin: 50px 0;">
+          <a href="http://localhost:3000/pay/${bookingId}" style="background-color: #C6FF00; color: #000; padding: 15px 30px; text-decoration: none; font-size: 12px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase;">
+            Process Final Payment
+          </a>
+        </div>
+
+        <div style="margin-top: 60px; font-size: 10px; color: #6B6560; text-transform: uppercase; letter-spacing: 2px;">
+          Yashank D. — Portrait & Street<br/>
+          Bengaluru, IN
+        </div>
+      </div>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending payment request email:", error);
+    return { error: "Failed to send email" };
+  }
+}
+
 export async function sendGalleryDeliveryEmail(
   clientEmail: string,
   clientName: string,
   galleryLink: string,
-  galleryPassword?: string
+  galleryPassword?: string,
+  attachments?: any[]
 ) {
   const mailOptions = {
     from: `"Yashank D." <${process.env.EMAIL_USER}>`,
@@ -92,11 +219,11 @@ export async function sendGalleryDeliveryEmail(
       <div style="font-family: 'Courier New', Courier, monospace; max-width: 600px; margin: 0 auto; background-color: #0D0D0D; color: #EDEDED; padding: 40px; border: 1px solid #333;">
         
         <h1 style="font-family: Georgia, serif; font-style: italic; font-weight: 300; font-size: 32px; margin-bottom: 10px;">
-          The wait is over, ${clientName.split(' ')[0]}.
+          Here are your photos, ${clientName.split(' ')[0]}.
         </h1>
         
         <p style="color: #6B6560; font-size: 14px; margin-bottom: 40px;">
-          Your final, edited photographs are fully rendered and ready for viewing. 
+          Your final payment has been successfully processed! Your complete gallery is now unlocked.
         </p>
 
         <div style="text-align: center; margin: 50px 0;">
@@ -122,6 +249,7 @@ export async function sendGalleryDeliveryEmail(
         </div>
       </div>
     `,
+    attachments: attachments
   };
 
   try {
