@@ -115,7 +115,7 @@ function StripCard({
       ref={cardRef}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
-      className={`relative flex-shrink-0 h-full overflow-hidden bg-bg-surface cursor-pointer ${width}`}
+      className={`relative shrink-0 h-full overflow-hidden bg-bg-surface cursor-pointer ${width}`}
       style={{ zIndex: 1, willChange: "transform" }}
     >
       <Image
