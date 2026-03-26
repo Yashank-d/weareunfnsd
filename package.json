@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.100.0",
+    "gsap": "^3.14.2",
     "next": "16.2.1",
     "nodemailer": "^8.0.4",
     "razorpay": "^2.9.6",
