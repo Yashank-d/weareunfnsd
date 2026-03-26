@@ -1,26 +1,53 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* Core Color Palette */
+  --color-bg-primary: #0D0D0D;
+  --color-bg-surface: #141414;
+  --color-bg-surface-secondary: #1A1A1A;
+  
+  --color-text-primary: #EDEDED;
+  --color-text-muted: #6B6560;
+  
+  --color-accent: #C6FF00; /* The Acid Green */
+  --color-danger: #E05A4A;
+  --color-success: #4A9E6B;
+  
+  --color-border-glass: rgba(255, 255, 255, 0.07);
+
+  /* Typography Variables (We will link these in layout.tsx) */
+  --font-display: var(--font-cormorant);
+  --font-body: var(--font-karla);
+  --font-mono: var(--font-jetbrains);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* Base HTML/Body Setup */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  /* Smooth scrolling for anchor links */
+  scroll-behavior: smooth; 
+}
+
+/* Global Image Treatment: Slightly desaturated and contrast boosted by default */
+img {
+  filter: contrast(1.05) saturate(0.8);
+  transition: filter 0.5s ease;
+}
+
+/* Images pop to full color on hover */
+img:hover {
+  filter: contrast(1.05) saturate(1);
+}
+
+/* Custom form inputs - brutalist underline style */
+.input-editorial {
+  @apply w-full bg-transparent border-b border-border-glass py-2 font-mono text-sm text-text-primary focus:outline-none focus:border-accent transition-colors;
+}
+
+/* Custom Selection Color (When someone highlights text) */
+::selection {
+  background-color: var(--color-accent);
+  color: #000;
 }
